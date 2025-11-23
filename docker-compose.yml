@@ -1,0 +1,124 @@
+services:
+  # PostgreSQL для secretmagic (metadata, configs, logs)
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: secretmagic
+      POSTGRES_USER: secretmagic
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+      PGDATA: /var/lib/postgresql/data/pgdata
+    secrets:
+      - db_password
+    # Порты НЕ публикуются - доступ только через overlay сеть autoorder-net
+    # Для dev/debug можно временно раскомментировать:
+    # ports:
+    #   - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/db/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U secretmagic"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - secretmagic-internal
+    restart: unless-stopped
+
+  # SecretMagic microservice
+  secretmagic:
+    image: cr.selcloud.ru/autoorder-platform/secretmagic:${VERSION:-latest}
+    depends_on:
+      - postgres
+    environment:
+      # Environment config
+      - ENVIRONMENT=${ENVIRONMENT:-dev}
+      - SERVICE_NAME=secretmagic
+      - SERVICE_VERSION=${VERSION:-0.1.0}
+      - LOG_LEVEL=${LOG_LEVEL:-debug}
+      - GRPC_PORT=9000
+      - HTTP_PORT=8080
+      - NODE_NAME={{.Node.Hostname}}
+
+      # Database
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=secretmagic
+      - DB_USER=secretmagic
+      - DB_SSL_MODE=disable
+
+      # StarRocks (через overlay сеть autoorder-net-${ENVIRONMENT})
+      - STARROCKS_HOST=starrocks
+      - STARROCKS_PORT=9030
+      - STARROCKS_DATABASE=autoorder_data
+
+      # Feature Engineering
+      - FEATURE_WINDOW_DAYS=${FEATURE_WINDOW_DAYS:-90}
+      - FEATURE_MIN_SAMPLES=${FEATURE_MIN_SAMPLES:-7}
+      - FEATURE_NAN_STRATEGY=${FEATURE_NAN_STRATEGY:-decay}
+
+      # BOM Explosion
+      - BOM_MAX_LEVELS=${BOM_MAX_LEVELS:-5}
+      - BOM_INCLUDE_PRODUCED_AT=${BOM_INCLUDE_PRODUCED_AT:-true}
+
+      # External services (через overlay сеть autoorder-net-${ENVIRONMENT})
+      - INTEGRATOR_URL=http://integrator:9000
+
+      # Messenger (Redis Streams для event-driven communication)
+      - MESSENGER_HOST=messenger
+      - MESSENGER_PORT=6379
+      - MESSENGER_DB=0
+    secrets:
+      - db_password
+      - starrocks_user
+      - starrocks_password
+      - redis_password
+    volumes:
+      - ./configs:/app/configs:ro
+      - ./logs:/app/logs
+    networks:
+      - secretmagic-internal
+      - autoorder-net  # Для доступа к bigdatadb, messenger и другим сервисам
+    # Порты НЕ публикуются - доступ только через overlay сеть autoorder-net
+    # Service discovery: другие сервисы подключаются по имени 'secretmagic:9000' (gRPC) или 'secretmagic:8080' (HTTP)
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f python || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+networks:
+  # Внутренняя сеть для secretmagic <-> postgres (изолированная для каждого окружения)
+  secretmagic-internal:
+    driver: overlay
+    attachable: true
+
+  # Docker Swarm overlay сеть для всех микросервисов AutoOrder (shared по окружению)
+  # Имя сети: autoorder-net-dev / autoorder-net-stage / autoorder-net-prod
+  autoorder-net:
+    external: true
+    name: autoorder-net-${ENVIRONMENT:-dev}
+
+volumes:
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /srv/storage/autoorder/secretmagic-${ENVIRONMENT:-dev}/postgres
+
+secrets:
+  db_password:
+    external: true
+    name: secretmagic_${ENVIRONMENT:-dev}_postgres_password
+  starrocks_user:
+    external: true
+    name: secretmagic_${ENVIRONMENT:-dev}_starrocks_user
+  starrocks_password:
+    external: true
+    name: secretmagic_${ENVIRONMENT:-dev}_starrocks_password
+  redis_password:
+    external: true
+    name: messenger_${ENVIRONMENT:-dev}_redis_password
