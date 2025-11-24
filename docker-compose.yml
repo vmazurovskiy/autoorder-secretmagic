@@ -78,7 +78,6 @@ services:
       - redis_password
     volumes:
       - ./configs:/app/configs:ro
-      - ./logs:/app/logs
     networks:
       - secretmagic-internal
       - autoorder-net  # Для доступа к bigdatadb, messenger и другим сервисам
