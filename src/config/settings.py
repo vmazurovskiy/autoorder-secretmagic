@@ -6,6 +6,18 @@ from typing import Any
 from src.database.postgres import PostgresConfig
 
 
+class RedisConfig:
+    """Redis configuration."""
+
+    def __init__(self) -> None:
+        self.host = os.getenv("MESSENGER_HOST", "messenger")
+        self.port = int(os.getenv("MESSENGER_PORT", "6379"))
+        self.db = int(os.getenv("MESSENGER_DB", "0"))
+        self.consumer_group = f"secretmagic-{os.getenv('ENVIRONMENT', 'dev')}"
+        self.subscribe_streams: list[str] = []
+        self.publish_streams: dict[str, str] = {}
+
+
 class Settings:
     """Application settings."""
 
@@ -19,5 +31,5 @@ class Settings:
         # PostgreSQL
         self.postgres = PostgresConfig()
 
-        # Redis (stub for now)
-        self.redis: Any = None
+        # Redis
+        self.redis = RedisConfig()
