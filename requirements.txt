@@ -1,0 +1,45 @@
+# Core dependencies
+fastapi>=0.121.0,<1.0.0  # Для healthcheck endpoint (опционально)
+uvicorn>=0.38.0,<1.0.0   # ASGI server (если нужен healthcheck)
+pydantic>=2.12.0,<3.0.0   # Data validation
+pydantic-settings>=2.12.0,<3.0.0  # Settings management
+
+# Database
+psycopg2-binary>=2.9.11,<3.0.0  # PostgreSQL adapter
+sqlalchemy>=2.0.44,<3.0.0  # ORM для PostgreSQL
+alembic>=1.17.0,<2.0.0  # Database migrations
+
+# Data processing
+polars>=1.35.0  # Fast dataframe library (быстрые релизы)
+pandas>=2.3.0,<3.0.0  # For compatibility
+numpy>=2.3.0,<3.0.0  # Numerical computing
+scipy>=1.16.0,<2.0.0  # Scientific computing
+
+# StarRocks / MySQL protocol
+pymysql>=1.1.2,<2.0.0  # StarRocks uses MySQL protocol
+cryptography>=46.0.0  # For pymysql
+
+# Event-driven (Redis Streams)
+redis>=7.1.0,<8.0.0  # Redis client (includes type stubs since 5.0.0)
+hiredis>=3.3.0,<4.0.0  # C parser for redis-py (performance)
+
+# Logging & Monitoring
+structlog>=24.4.0,<26.0.0  # Structured logging
+python-json-logger>=4.0.0,<5.0.0  # JSON logging
+
+# Configuration
+pyyaml>=6.0.3,<7.0  # YAML config files
+python-dotenv>=1.2.0,<2.0.0  # .env support
+
+# Testing
+pytest>=9.0.0,<10.0.0
+pytest-cov>=6.0.0,<7.0.0  # Coverage
+pytest-asyncio>=1.3.0,<2.0.0  # Async tests
+pytest-mock>=3.15.0,<4.0.0  # Mocking
+
+# Code quality
+ruff>=0.14.0  # Fast linter & formatter (быстрые обновления)
+mypy>=1.18.0,<2.0.0  # Type checking
+
+# Type stubs
+types-PyYAML>=6.0.12

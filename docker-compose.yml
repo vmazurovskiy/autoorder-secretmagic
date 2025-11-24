@@ -36,8 +36,6 @@ services:
       - SERVICE_NAME=secretmagic
       - SERVICE_VERSION=${VERSION:-0.1.0}
       - LOG_LEVEL=${LOG_LEVEL:-debug}
-      - GRPC_PORT=9000
-      - HTTP_PORT=8080
       - NODE_NAME={{.Node.Hostname}}
 
       # Database
@@ -79,8 +77,7 @@ services:
     networks:
       - secretmagic-internal
       - autoorder-net  # Для доступа к bigdatadb, messenger и другим сервисам
-    # Порты НЕ публикуются - доступ только через overlay сеть autoorder-net
-    # Service discovery: другие сервисы подключаются по имени 'secretmagic:9000' (gRPC) или 'secretmagic:8080' (HTTP)
+    # Порты НЕ публикуются - event-driven consumer без HTTP/gRPC серверов
     healthcheck:
       test: ["CMD-SHELL", "pgrep -f python || exit 1"]
       interval: 30s

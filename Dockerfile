@@ -50,15 +50,15 @@ COPY --chown=secretmagic:secretmagic configs/ /app/configs/
 # >?8@C5< fixtures 4;O B5AB>2
 COPY --chown=secretmagic:secretmagic tests/fixtures /app/tests/fixtures
 
-# 5@5:;NG05<AO =0 =5?@828;538@>20==>3> ?>;L7>20B5;O
+
+# Переключаемся на непривилегированного пользователя
 USER secretmagic
 
-# >@BK
-EXPOSE 8080 9000
+# Event-driven consumer - нет HTTP/gRPC портов
 
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD pgrep -f python || exit 1
 
-# 0?CA: ?@8;>65=8O
+# Запуск приложения
 CMD ["python", "-m", "src.main"]
