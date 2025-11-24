@@ -6,9 +6,7 @@ from typing import Any
 class EventProcessor:
     """Stub EventProcessor class."""
 
-    def __init__(
-        self, postgres: Any, publisher: Any, settings: Any
-    ) -> None:
+    def __init__(self, postgres: Any, publisher: Any, settings: Any) -> None:
         pass
 
     async def process_event(self, event: Any) -> None:

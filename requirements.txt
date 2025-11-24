@@ -43,3 +43,4 @@ mypy>=1.18.0,<2.0.0  # Type checking
 
 # Type stubs
 types-PyYAML>=6.0.12
+types-psycopg2>=2.9.0
