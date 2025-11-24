@@ -48,7 +48,7 @@ RUN mkdir -p /app/configs /app/logs /app/tests/fixtures && \
 COPY --chown=secretmagic:secretmagic configs/ /app/configs/
 
 # >?8@C5< fixtures 4;O B5AB>2
-COPY --chown=secretmagic:secretmagic tests/fixtures /app/tests/fixtures
+# COPY --chown=secretmagic:secretmagic tests/fixtures /app/tests/fixtures
 
 
 # Переключаемся на непривилегированного пользователя
