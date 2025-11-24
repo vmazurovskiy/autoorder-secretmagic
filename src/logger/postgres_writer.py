@@ -119,11 +119,7 @@ class PostgresWriter:
                     entry.message,
                     entry.error_message,
                     entry.stack_trace,
-                    (
-                        json.dumps(entry.context)
-                        if entry.context is not None
-                        else None
-                    ),
+                    (json.dumps(entry.context) if entry.context is not None else None),
                     entry.duration_ms,
                     entry.ingestion_time,
                 )

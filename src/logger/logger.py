@@ -82,9 +82,7 @@ class Logger:
         """Основной метод логирования."""
         # Получаем информацию о caller
         frame = inspect.currentframe()
-        caller_frame = (
-            frame.f_back.f_back if frame and frame.f_back else None
-        )
+        caller_frame = frame.f_back.f_back if frame and frame.f_back else None
 
         function_name = None
         file_path = None
@@ -173,11 +171,7 @@ class Logger:
 
     def with_trace_id(self, trace_id: str) -> "Logger":
         """Возвращает новый logger с trace ID."""
-        new_logger = (
-            self.with_category(self._category)
-            if self._category
-            else self._copy()
-        )
+        new_logger = self.with_category(self._category) if self._category else self._copy()
         new_logger._trace_id = trace_id
         return new_logger
 

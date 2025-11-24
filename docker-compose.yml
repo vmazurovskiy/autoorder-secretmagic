@@ -23,7 +23,12 @@ services:
       retries: 5
     networks:
       - secretmagic-internal
-    restart: unless-stopped
+    deploy:
+      placement:
+        constraints:
+          - node.hostname == lde-gpu
+      restart_policy:
+        condition: on-failure
 
   # SecretMagic microservice
   secretmagic:
@@ -84,7 +89,12 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
-    restart: unless-stopped
+    deploy:
+      placement:
+        constraints:
+          - node.hostname == lde-gpu
+      restart_policy:
+        condition: on-failure
 
 networks:
   # Внутренняя сеть для secretmagic <-> postgres (изолированная для каждого окружения)

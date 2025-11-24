@@ -1,0 +1,129 @@
+name: CD - DEV
+
+on:
+  push:
+    branches: [develop, master]
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+      - '.gitignore'
+      - 'LICENSE'
+
+env:
+  REGISTRY: cr.selcloud.ru/autoorder-platform
+  IMAGE_NAME: secretmagic
+  ENVIRONMENT: dev
+
+jobs:
+  build-and-deploy:
+    name: Build and Deploy to DEV
+    runs-on: [self-hosted, autoorder-ci]
+    environment: development
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Selectel Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: token
+          password: ${{ secrets.SELECTEL_REGISTRY_PASSWORD }}
+
+      - name: Extract metadata
+        id: meta
+        run: |
+          SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+          IMAGE_TAG="dev-${SHORT_SHA}"
+          echo "image_tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+          echo "short_sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
+          echo "full_image=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG}" >> $GITHUB_OUTPUT
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.image_tag }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:dev-latest
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache-dev
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache-dev,mode=max
+
+      - name: Deploy to DEV Swarm
+        run: |
+          # Деплой через SSH на Swarm manager
+          ssh -o StrictHostKeyChecking=no autoorder-cicd-runner@10.77.0.1 << 'ENDSSH'
+            # Проверяем, существует ли service
+            if docker service inspect secretmagic-dev_secretmagic >/dev/null 2>&1; then
+              echo "Service exists, updating..."
+              docker service update \
+                --image ${{ steps.meta.outputs.full_image }} \
+                --with-registry-auth \
+                secretmagic-dev_secretmagic
+            else
+              echo "Service not found, deploying stack from scratch..."
+              # Первый деплой - из репозитория на manager
+              cd /srv/code-base/v/autoorder/secretmagic
+
+              # Pull latest changes
+              git fetch origin master
+              git checkout master
+              git pull origin master
+
+              # Deploy stack with environment variables
+              ENVIRONMENT=dev VERSION=${{ steps.meta.outputs.image_tag }} \
+              docker stack deploy \
+                --compose-file docker-compose.yml \
+                --with-registry-auth \
+                secretmagic-dev
+            fi
+          ENDSSH
+
+      - name: Wait for deployment
+        run: |
+          echo "Waiting for service to stabilize..."
+          sleep 10
+          ssh -o StrictHostKeyChecking=no autoorder-cicd-runner@10.77.0.1 \
+            "docker service ps secretmagic-dev_secretmagic --no-trunc"
+
+      - name: Initialize database
+        run: |
+          echo "Initializing database (logs table)..."
+          ssh -o StrictHostKeyChecking=no autoorder-cicd-runner@10.77.0.1 << 'ENDSSH'
+            # Проверяем, что PostgreSQL готов
+            for i in {1..30}; do
+              if docker service ps secretmagic-dev_postgres | grep -q Running; then
+                echo "PostgreSQL is ready"
+                break
+              fi
+              echo "Waiting for PostgreSQL... ($i/30)"
+              sleep 2
+            done
+
+            # Выполняем SQL инициализацию через psql в контейнере
+            POSTGRES_CONTAINER=$(docker ps --filter "name=secretmagic-dev_postgres" --format "{{.ID}}" | head -1)
+            if [ -n "$POSTGRES_CONTAINER" ]; then
+              echo "Running database initialization..."
+              docker exec $POSTGRES_CONTAINER psql -U secretmagic -d secretmagic -f /docker-entrypoint-initdb.d/001_logs_schema.sql || true
+            else
+              echo "PostgreSQL container not found, skipping initialization"
+            fi
+          ENDSSH
+
+      - name: Deployment summary
+        run: |
+          echo "### ✅ Deployment to DEV successful" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image:** \`${{ steps.meta.outputs.full_image }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Author:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Node:** \`lde-gpu (10.77.0.2)\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Services:**" >> $GITHUB_STEP_SUMMARY
+          echo "- SecretMagic: event-driven consumer (no exposed ports)" >> $GITHUB_STEP_SUMMARY
+          echo "- PostgreSQL: internal database" >> $GITHUB_STEP_SUMMARY
