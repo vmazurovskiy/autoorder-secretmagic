@@ -14,7 +14,14 @@ class RedisConfig:
         self.port = int(os.getenv("MESSENGER_PORT", "6379"))
         self.db = int(os.getenv("MESSENGER_DB", "0"))
         self.consumer_group = f"secretmagic-{os.getenv('ENVIRONMENT', 'dev')}"
-        self.subscribe_streams: list[str] = []
+
+        # Streams для подписки (читаем события от integrator)
+        self.subscribe_streams: list[str] = [
+            "clients-updates",  # Конфигурация клиентов
+            # В будущем: sales-updates, stock-updates, bom-updates, и т.д.
+        ]
+
+        # Streams для публикации (пока не используется)
         self.publish_streams: dict[str, str] = {}
 
 
