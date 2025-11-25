@@ -78,24 +78,16 @@ async def main() -> None:
 
     logger.info("Connected to PostgreSQL", category(Category.DATABASE))
 
-    # Initialize Redis client for event-driven communication
-    redis_client = RedisClient(settings.redis)
-    await redis_client.connect()
-
-    logger.info(
-        "Connected to messenger (Redis)",
-        category(Category.MESSENGER),
-        param("host", settings.redis.host),
-        param("port", settings.redis.port),
-    )
-
     # Initialize repositories
     client_repository = ClientRepository(postgres_client)
 
     # Initialize event handler
     event_handler = EventHandler(client_repository)
 
-    # Initialize event subscriber (читаем события от integrator)
+    # Initialize Redis client (connection deferred until after healthcheck)
+    redis_client = RedisClient(settings.redis)
+
+    # Initialize event subscriber
     subscriber = EventSubscriber(
         redis_client=redis_client,
         consumer_group=settings.redis.consumer_group,
@@ -113,14 +105,30 @@ async def main() -> None:
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(sig, partial(signal_handler, sig))
 
+    # Application started - healthcheck will pass now (python is running)
+    logger.info(
+        "SecretMagic ready, waiting for network initialization...",
+        param("consumer_group", settings.redis.consumer_group),
+        param("streams", settings.redis.subscribe_streams),
+    )
+
+    # Wait for Docker Swarm overlay network to fully attach
+    # This prevents DNS resolution failures due to network race conditions
+    await asyncio.sleep(15)
+
+    # Now connect to Redis
+    await redis_client.connect()
+
+    logger.info(
+        "Connected to messenger (Redis)",
+        category(Category.MESSENGER),
+        param("host", settings.redis.host),
+        param("port", settings.redis.port),
+    )
+
     # Start consuming events
     try:
-        logger.info(
-            "Starting event consumer",
-            category(Category.MESSENGER),
-            param("consumer_group", settings.redis.consumer_group),
-            param("streams", settings.redis.subscribe_streams),
-        )
+        logger.info("Starting event consumer", category(Category.MESSENGER))
         await subscriber.consume(event_handler.handle)
     except Exception as e:
         logger.error("Fatal error in event consumer", e, param("error", str(e)))
