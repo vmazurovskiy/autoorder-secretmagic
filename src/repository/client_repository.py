@@ -9,7 +9,7 @@ from psycopg2.extras import RealDictCursor
 from src.database.postgres import PostgresClient
 from src.domain.client import Client
 from src.logger.logger import get_logger
-from src.logger.types import Category
+from src.logger.types import Category, param
 
 
 class ClientRepository:
@@ -84,8 +84,8 @@ class ClientRepository:
 
             self.logger.info(
                 f"Client upserted: {client.id}",
-                client_id=str(client.id),
-                client_name=client.name,
+                param("client_id", str(client.id)),
+                param("client_name", client.name),
             )
 
         except Exception as e:
@@ -93,7 +93,7 @@ class ClientRepository:
             self.logger.error(
                 f"Failed to upsert client {client.id}",
                 e,
-                client_id=str(client.id),
+                param("client_id", str(client.id)),
             )
             raise
         finally:

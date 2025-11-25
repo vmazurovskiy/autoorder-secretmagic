@@ -35,7 +35,7 @@ class RedisClient:
         )
 
         # Проверяем подключение
-        await self.redis.ping()
+        await self.redis.ping()  # type: ignore[misc]
 
     async def close(self) -> None:
         """Close Redis connection."""

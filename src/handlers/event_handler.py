@@ -4,7 +4,7 @@ from typing import Any
 
 from src.domain.client import Client
 from src.logger.logger import get_logger
-from src.logger.types import Category
+from src.logger.types import Category, param
 from src.repository.client_repository import ClientRepository
 
 
@@ -46,35 +46,35 @@ class EventHandler:
 
         self.logger.info(
             f"Processing event: {event_type}",
-            event_id=event_id,
-            event_type=event_type,
-            client_id=client_id,
+            param("event_id", event_id),
+            param("event_type", event_type),
+            param("client_id", client_id),
         )
 
-        handler = self._handlers.get(event_type)
+        handler = self._handlers.get(event_type or "")
         if handler:
             try:
                 await handler(event)
                 self.logger.info(
                     f"Event processed successfully: {event_type}",
-                    event_id=event_id,
-                    event_type=event_type,
-                    client_id=client_id,
+                    param("event_id", event_id),
+                    param("event_type", event_type),
+                    param("client_id", client_id),
                 )
             except Exception as e:
                 self.logger.error(
                     f"Failed to process event: {event_type}",
                     e,
-                    event_id=event_id,
-                    event_type=event_type,
-                    client_id=client_id,
+                    param("event_id", event_id),
+                    param("event_type", event_type),
+                    param("client_id", client_id),
                 )
                 raise
         else:
             self.logger.warn(
                 f"Unknown event type: {event_type}",
-                event_id=event_id,
-                event_type=event_type,
+                param("event_id", event_id),
+                param("event_type", event_type),
             )
 
     async def _handle_clients_updated(self, event: dict[str, Any]) -> None:
@@ -91,7 +91,7 @@ class EventHandler:
         if not data:
             self.logger.warn(
                 "clients_updated event has empty data",
-                event_id=event.get("event_id"),
+                param("event_id", event.get("event_id")),
             )
             return
 
@@ -102,9 +102,9 @@ class EventHandler:
         enabled_features = client.get_enabled_features()
         self.logger.debug(
             f"Client features: {enabled_features}",
-            client_id=str(client.id),
-            client_name=client.name,
-            features=enabled_features,
+            param("client_id", str(client.id)),
+            param("client_name", client.name),
+            param("features", enabled_features),
         )
 
         # Сохраняем/обновляем клиента в БД
@@ -112,8 +112,8 @@ class EventHandler:
 
         self.logger.info(
             f"Client configuration saved: {client.name}",
-            client_id=str(client.id),
-            client_name=client.name,
-            status=client.status,
-            features_count=len(enabled_features),
+            param("client_id", str(client.id)),
+            param("client_name", client.name),
+            param("status", client.status),
+            param("features_count", len(enabled_features)),
         )

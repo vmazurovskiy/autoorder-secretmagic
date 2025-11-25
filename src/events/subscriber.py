@@ -7,7 +7,7 @@ from typing import Any
 
 from src.events.client import RedisClient
 from src.logger.logger import get_logger
-from src.logger.types import Category
+from src.logger.types import Category, param
 
 
 class EventSubscriber:
@@ -79,7 +79,7 @@ class EventSubscriber:
             try:
                 # XREADGROUP: читаем новые сообщения ('>') с блокировкой
                 # Формат: {stream1: '>', stream2: '>'}
-                streams_dict = dict.fromkeys(self.streams, ">")
+                streams_dict: dict[str, str] = dict.fromkeys(self.streams, ">")
 
                 messages = await redis.xreadgroup(
                     groupname=self.consumer_group,
@@ -128,9 +128,9 @@ class EventSubscriber:
             # Логируем получение события
             self.logger.debug(
                 f"Received event from stream '{stream}'",
-                event_id=event.get("event_id"),
-                event_type=event.get("event_type"),
-                client_id=event.get("client_id"),
+                param("event_id", event.get("event_id")),
+                param("event_type", event.get("event_type")),
+                param("client_id", event.get("client_id")),
             )
 
             # Обрабатываем событие через handler
@@ -142,16 +142,16 @@ class EventSubscriber:
 
             self.logger.debug(
                 "Event processed and ACKed",
-                event_id=event.get("event_id"),
-                message_id=message_id,
+                param("event_id", event.get("event_id")),
+                param("message_id", message_id),
             )
 
         except Exception as e:
             self.logger.error(
                 f"Failed to handle message from stream '{stream}'",
                 e,
-                message_id=message_id,
-                message_data=message_data,
+                param("message_id", message_id),
+                param("message_data", message_data),
             )
             # НЕ ACK при ошибке - сообщение останется в pending list
             # Можно реализовать retry logic через XPENDING
