@@ -47,6 +47,7 @@ class RedisClient:
                     host=self.config.host,
                     port=self.config.port,
                     db=self.config.db,
+                    password=self.config.password,
                     decode_responses=True,
                     socket_keepalive=True,
                     socket_connect_timeout=5,

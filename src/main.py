@@ -96,11 +96,11 @@ async def main() -> None:
 
     # Setup graceful shutdown
     loop = asyncio.get_event_loop()
+    shutdown_event = asyncio.Event()
 
     def signal_handler(sig: int) -> None:
         logger.info("Received signal", param("signal", sig))
-        asyncio.create_task(shutdown(redis_client, postgres_client, subscriber, log_writer))
-        loop.stop()
+        shutdown_event.set()
 
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(sig, partial(signal_handler, sig))
@@ -129,11 +129,29 @@ async def main() -> None:
     # Start consuming events
     try:
         logger.info("Starting event consumer", category(Category.MESSENGER))
-        await subscriber.consume(event_handler.handle)
+
+        # Запускаем consumer и ожидание сигнала параллельно
+        consumer_task = asyncio.create_task(subscriber.consume(event_handler.handle))
+        shutdown_task = asyncio.create_task(shutdown_event.wait())
+
+        # Ждём либо завершения consumer, либо сигнала shutdown
+        done, pending = await asyncio.wait(
+            [consumer_task, shutdown_task],
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+
+        # Отменяем pending задачи
+        for task in pending:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
     except Exception as e:
         logger.error("Fatal error in event consumer", e, param("error", str(e)))
+    finally:
         await shutdown(redis_client, postgres_client, subscriber, log_writer)
-        sys.exit(1)
 
 
 if __name__ == "__main__":

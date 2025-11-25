@@ -12,6 +12,7 @@ class RedisConfig:
         self.host = os.getenv("MESSENGER_HOST", "messenger")
         self.port = int(os.getenv("MESSENGER_PORT", "6379"))
         self.db = int(os.getenv("MESSENGER_DB", "0"))
+        self.password = self._read_password()
         self.consumer_group = f"secretmagic-{os.getenv('ENVIRONMENT', 'dev')}"
 
         # Streams для подписки (читаем события от integrator)
@@ -22,6 +23,15 @@ class RedisConfig:
 
         # Streams для публикации (пока не используется)
         self.publish_streams: dict[str, str] = {}
+
+    def _read_password(self) -> str | None:
+        """Read Redis password from Docker secret or environment."""
+        secret_path = "/run/secrets/redis_password"
+        try:
+            with open(secret_path) as f:
+                return f.read().strip()
+        except FileNotFoundError:
+            return os.getenv("MESSENGER_PASSWORD")
 
 
 class Settings:
