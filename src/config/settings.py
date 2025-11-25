@@ -1,7 +1,6 @@
 """Settings module for SecretMagic microservice."""
 
 import os
-from typing import Any
 
 from src.database.postgres import PostgresConfig
 

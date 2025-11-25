@@ -79,7 +79,7 @@ class EventSubscriber:
             try:
                 # XREADGROUP: читаем новые сообщения ('>') с блокировкой
                 # Формат: {stream1: '>', stream2: '>'}
-                streams_dict = {stream: ">" for stream in self.streams}
+                streams_dict = dict.fromkeys(self.streams, ">")
 
                 messages = await redis.xreadgroup(
                     groupname=self.consumer_group,
@@ -141,7 +141,7 @@ class EventSubscriber:
             await redis.xack(stream, self.consumer_group, message_id)
 
             self.logger.debug(
-                f"Event processed and ACKed",
+                "Event processed and ACKed",
                 event_id=event.get("event_id"),
                 message_id=message_id,
             )

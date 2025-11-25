@@ -1,13 +1,18 @@
 """Redis client for messenger (Redis Streams)."""
 
+from typing import TYPE_CHECKING
+
 import redis.asyncio as redis_async
 from redis.asyncio.client import Redis
+
+if TYPE_CHECKING:
+    from src.config.settings import RedisConfig
 
 
 class RedisClient:
     """Redis client for connecting to messenger."""
 
-    def __init__(self, config: "RedisConfig") -> None:  # type: ignore
+    def __init__(self, config: "RedisConfig") -> None:
         """
         Initialize Redis client.
 

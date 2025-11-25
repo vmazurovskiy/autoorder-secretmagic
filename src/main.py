@@ -13,12 +13,12 @@ from functools import partial
 from src.config.settings import Settings
 from src.database.postgres import PostgresClient
 from src.events.client import RedisClient
-from src.events.publisher import EventPublisher
 from src.events.subscriber import EventSubscriber
+from src.handlers.event_handler import EventHandler
 from src.logger.logger import get_logger, init_logger
 from src.logger.postgres_writer import PostgresWriter
 from src.logger.types import Category, category, param
-from src.pipeline.processor import EventProcessor
+from src.repository.client_repository import ClientRepository
 
 
 async def shutdown(
@@ -76,28 +76,30 @@ async def main() -> None:
     postgres_client = PostgresClient(settings.postgres)
     await postgres_client.connect()
 
+    logger.info("Connected to PostgreSQL", category(Category.DATABASE))
+
     # Initialize Redis client for event-driven communication
     redis_client = RedisClient(settings.redis)
     await redis_client.connect()
+
+    logger.info(
+        "Connected to messenger (Redis)",
+        category(Category.MESSENGER),
+        param("host", settings.redis.host),
+        param("port", settings.redis.port),
+    )
+
+    # Initialize repositories
+    client_repository = ClientRepository(postgres_client)
+
+    # Initialize event handler
+    event_handler = EventHandler(client_repository)
 
     # Initialize event subscriber (читаем события от integrator)
     subscriber = EventSubscriber(
         redis_client=redis_client,
         consumer_group=settings.redis.consumer_group,
         streams=settings.redis.subscribe_streams,
-    )
-
-    # Initialize event publisher (публикуем свои события)
-    publisher = EventPublisher(
-        redis_client=redis_client,
-        streams_mapping=settings.redis.publish_streams,
-    )
-
-    # Initialize event processor
-    processor = EventProcessor(
-        postgres=postgres_client,
-        publisher=publisher,
-        settings=settings,
     )
 
     # Setup graceful shutdown
@@ -113,8 +115,13 @@ async def main() -> None:
 
     # Start consuming events
     try:
-        logger.info("Starting event consumer", category(Category.MESSENGER))
-        await subscriber.consume(processor.process_event)
+        logger.info(
+            "Starting event consumer",
+            category(Category.MESSENGER),
+            param("consumer_group", settings.redis.consumer_group),
+            param("streams", settings.redis.subscribe_streams),
+        )
+        await subscriber.consume(event_handler.handle)
     except Exception as e:
         logger.error("Fatal error in event consumer", e, param("error", str(e)))
         await shutdown(redis_client, postgres_client, subscriber, log_writer)
