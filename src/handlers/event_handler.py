@@ -28,7 +28,8 @@ class EventHandler:
         # Маппинг event_type -> handler method
         self._handlers: dict[str, Any] = {
             "clients_updated": self._handle_clients_updated,
-            # В будущем: sales_updated, stock_updated, bom_updated, и т.д.
+            "sales_updated": self._handle_sales_updated,
+            # В будущем: stock_updated, bom_updated, и т.д.
         }
 
     async def handle(self, event: dict[str, Any]) -> None:
@@ -117,3 +118,57 @@ class EventHandler:
             param("status", client.status),
             param("features_count", len(enabled_features)),
         )
+
+    async def _handle_sales_updated(self, event: dict[str, Any]) -> None:
+        """
+        Handle sales_updated event.
+
+        Event Notification Pattern - событие содержит только метаданные.
+        Полные данные нужно читать из StarRocks по client_id.
+
+        Формат data:
+            - table_name: название таблицы (например, "c2_sales")
+            - record_count: количество обновлённых записей
+            - updated_at: время обновления данных
+
+        Args:
+            event: Event with sales metadata in 'data' field
+        """
+        event_id = event.get("event_id")
+        client_id = event.get("client_id")
+        timestamp = event.get("timestamp")
+        data = event.get("data", {})
+
+        if not client_id:
+            self.logger.warn(
+                "sales_updated event has no client_id",
+                param("event_id", event_id),
+            )
+            return
+
+        # Извлекаем метаданные из события
+        table_name = data.get("table_name", "unknown")
+        record_count = data.get("record_count", 0)
+        updated_at = data.get("updated_at", timestamp)
+
+        # Проверяем, есть ли клиент в нашей БД
+        client = self.client_repository.get_by_id(client_id)
+        client_name = client.name if client else "unknown"
+        client_status = client.status if client else "not_found"
+
+        self.logger.info(
+            f"Sales data updated for client: {client_name}",
+            param("event_id", event_id),
+            param("client_id", client_id),
+            param("client_name", client_name),
+            param("client_status", client_status),
+            param("table_name", table_name),
+            param("record_count", record_count),
+            param("updated_at", updated_at),
+        )
+
+        # TODO: Далее здесь будет логика:
+        # 1. Проверить, что клиент active и config_confirmed
+        # 2. Определить, какие данные новые (сравнить с last_processed_at)
+        # 3. Запустить feature engineering для нового периода
+        # 4. Обновить last_processed_at для клиента

@@ -18,7 +18,8 @@ class RedisConfig:
         # Streams для подписки (читаем события от integrator)
         self.subscribe_streams: list[str] = [
             "clients-updates",  # Конфигурация клиентов
-            # В будущем: sales-updates, stock-updates, bom-updates, и т.д.
+            "sales-updates",  # Обновление продаж
+            # В будущем: stock-updates, bom-updates, и т.д.
         ]
 
         # Streams для публикации (пока не используется)
