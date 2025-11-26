@@ -93,7 +93,7 @@ services:
         constraints:
           - node.hostname == lde-gpu
       restart_policy:
-        condition: on-failure
+        condition: any
 
 networks:
   # Внутренняя сеть для secretmagic <-> postgres (изолированная для каждого окружения)
