@@ -21,6 +21,7 @@ FROM python:3.12-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     tzdata \
+    procps \
     && rm -rf /var/lib/apt/lists/*
 
 # !>740Q< ?>;L7>20B5;O 4;O 70?CA:0 ?@8;>65=8O (=5 root)
