@@ -3,6 +3,7 @@
 import os
 
 from src.database.postgres import PostgresConfig
+from src.database.starrocks import StarRocksConfig
 
 
 class RedisConfig:
@@ -50,3 +51,6 @@ class Settings:
 
         # Redis
         self.redis = RedisConfig()
+
+        # StarRocks (аналитическая БД)
+        self.starrocks = StarRocksConfig()

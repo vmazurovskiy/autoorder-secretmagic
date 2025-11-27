@@ -6,12 +6,13 @@ Event-driven consumer без HTTP/gRPC серверов.
 """
 
 import asyncio
+import contextlib
 import signal
-import sys
 from functools import partial
 
 from src.config.settings import Settings
 from src.database.postgres import PostgresClient
+from src.database.starrocks import StarRocksClient
 from src.events.client import RedisClient
 from src.events.subscriber import EventSubscriber
 from src.handlers.event_handler import EventHandler
@@ -24,6 +25,7 @@ from src.repository.client_repository import ClientRepository
 async def shutdown(
     redis_client: RedisClient,
     postgres_client: PostgresClient,
+    starrocks_client: StarRocksClient,
     subscriber: EventSubscriber,
     log_writer: PostgresWriter,
 ) -> None:
@@ -36,6 +38,7 @@ async def shutdown(
 
     # 2. Закрыть соединения
     await redis_client.close()
+    await starrocks_client.close()
     await postgres_client.close()
 
     # 3. Закрыть log writer (flush оставшихся логов)
@@ -75,8 +78,17 @@ async def main() -> None:
     # Initialize database clients
     postgres_client = PostgresClient(settings.postgres)
     await postgres_client.connect()
-
     logger.info("Connected to PostgreSQL", category(Category.DATABASE))
+
+    # Initialize StarRocks client (аналитическая БД)
+    starrocks_client = StarRocksClient(settings.starrocks)
+    await starrocks_client.connect()
+    logger.info(
+        "Connected to StarRocks",
+        category(Category.STARROCKS),
+        param("host", settings.starrocks.host),
+        param("database", settings.starrocks.database),
+    )
 
     # Initialize repositories
     client_repository = ClientRepository(postgres_client)
@@ -143,15 +155,13 @@ async def main() -> None:
         # Отменяем pending задачи
         for task in pending:
             task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await task
-            except asyncio.CancelledError:
-                pass
 
     except Exception as e:
         logger.error("Fatal error in event consumer", e, param("error", str(e)))
     finally:
-        await shutdown(redis_client, postgres_client, subscriber, log_writer)
+        await shutdown(redis_client, postgres_client, starrocks_client, subscriber, log_writer)
 
 
 if __name__ == "__main__":
