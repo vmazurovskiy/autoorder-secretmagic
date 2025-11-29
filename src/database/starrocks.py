@@ -5,8 +5,8 @@ StarRocks использует MySQL-протокол, поэтому подкл
 """
 
 import os
-from contextlib import contextmanager
 from collections.abc import Generator
+from contextlib import contextmanager
 from typing import Any
 
 import pymysql
