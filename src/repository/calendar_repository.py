@@ -221,7 +221,7 @@ class CalendarRepository:
         except Exception as e:
             self.logger.error(
                 "Failed to ensure dim_calendar table exists",
-                param("error", str(e)),
+                e,
             )
             return False
 
