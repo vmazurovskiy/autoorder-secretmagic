@@ -212,17 +212,87 @@ class CalendarRepository:
             if result:
                 return True
 
-            # Table doesn't exist - log warning
-            # Table should be created by init script
-            self.logger.warn(
-                f"Table {self.TABLE_NAME} does not exist. "
-                "Run scripts/starrocks/init/001_dim_calendar.sql"
-            )
-            return False
+            # Table doesn't exist - create it
+            self.logger.info(f"Table {self.TABLE_NAME} does not exist, creating...")
+            self._create_table()
+            self.logger.info(f"Table {self.TABLE_NAME} created successfully")
+            return True
 
         except Exception as e:
             self.logger.error(
-                "Failed to check dim_calendar table",
+                "Failed to ensure dim_calendar table exists",
                 param("error", str(e)),
             )
             return False
+
+    def _create_table(self) -> None:
+        """Create dim_calendar table in StarRocks."""
+        ddl = """
+        CREATE TABLE IF NOT EXISTS dim_calendar (
+            `date` DATE NOT NULL COMMENT 'Календарная дата',
+            iso_year INT NOT NULL COMMENT 'ISO год (год ISO-недели)',
+            iso_week INT NOT NULL COMMENT 'ISO неделя (1-53)',
+            iso_dow TINYINT NOT NULL COMMENT 'ISO день недели: 1=Пн...7=Вс',
+            `year` INT NOT NULL COMMENT 'Григорианский год',
+            `month` TINYINT NOT NULL COMMENT 'Месяц (1-12)',
+            `day` TINYINT NOT NULL COMMENT 'День месяца (1-31)',
+            `quarter` TINYINT NOT NULL COMMENT 'Квартал (1-4)',
+            day_of_year SMALLINT NOT NULL COMMENT 'День года (1-366)',
+            dow_sin DOUBLE NOT NULL COMMENT 'sin(2π * iso_dow / 7)',
+            dow_cos DOUBLE NOT NULL COMMENT 'cos(2π * iso_dow / 7)',
+            week_sin DOUBLE NOT NULL COMMENT 'sin(2π * iso_week / 53)',
+            week_cos DOUBLE NOT NULL COMMENT 'cos(2π * iso_week / 53)',
+            doy_sin DOUBLE NOT NULL COMMENT 'sin(2π * day_of_year / 366)',
+            doy_cos DOUBLE NOT NULL COMMENT 'cos(2π * day_of_year / 366)',
+            day_sin DOUBLE NOT NULL COMMENT 'sin(2π * day / days_in_month)',
+            day_cos DOUBLE NOT NULL COMMENT 'cos(2π * day / days_in_month)',
+            month_sin DOUBLE NOT NULL COMMENT 'sin(2π * month / 12)',
+            month_cos DOUBLE NOT NULL COMMENT 'cos(2π * month / 12)',
+            is_monday TINYINT NOT NULL DEFAULT 0 COMMENT 'Понедельник',
+            is_tuesday TINYINT NOT NULL DEFAULT 0 COMMENT 'Вторник',
+            is_wednesday TINYINT NOT NULL DEFAULT 0 COMMENT 'Среда',
+            is_thursday TINYINT NOT NULL DEFAULT 0 COMMENT 'Четверг',
+            is_friday TINYINT NOT NULL DEFAULT 0 COMMENT 'Пятница',
+            is_saturday TINYINT NOT NULL DEFAULT 0 COMMENT 'Суббота',
+            is_sunday TINYINT NOT NULL DEFAULT 0 COMMENT 'Воскресенье',
+            is_weekend_iso BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'Суббота/воскресенье по ISO',
+            is_day_off_official BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'Официальный нерабочий день',
+            is_weekend_official BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'Официальный выходной',
+            is_holiday_official BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'Официальный праздник',
+            is_preholiday_official BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'Сокращённый рабочий день',
+            within_holiday_block BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'День внутри праздничного блока',
+            holiday_block_pos INT NULL COMMENT 'Позиция в блоке (0-indexed)',
+            is_preholiday_start BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'День перед праздничным блоком',
+            is_preholiday_start_working BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'Рабочий день перед праздничным блоком',
+            is_last_off_before_work BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'Последний нерабочий перед рабочим',
+            is_first_work_after_off BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'Первый рабочий после нерабочих',
+            is_last_weekend_iso_before_work BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'Последний ISO выходной перед работой',
+            is_last_official_weekend_before_work BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'Последний официальный выходной перед работой',
+            is_pre_weekend_iso BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'Пятница',
+            is_pre_weekend_official BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'Завтра официальный нерабочий',
+            is_working_weekend BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'ISO выходной, но рабочий день',
+            is_day_off_non_weekend BOOLEAN NOT NULL DEFAULT FALSE COMMENT 'Будний, но нерабочий',
+            is_new_year_holidays TINYINT NOT NULL DEFAULT 0 COMMENT 'Новогодние каникулы',
+            is_defender_day TINYINT NOT NULL DEFAULT 0 COMMENT 'День защитника Отечества',
+            is_womens_day TINYINT NOT NULL DEFAULT 0 COMMENT 'Международный женский день',
+            is_labour_day TINYINT NOT NULL DEFAULT 0 COMMENT 'Праздник Весны и Труда',
+            is_victory_day TINYINT NOT NULL DEFAULT 0 COMMENT 'День Победы',
+            is_russia_day TINYINT NOT NULL DEFAULT 0 COMMENT 'День России',
+            is_unity_day TINYINT NOT NULL DEFAULT 0 COMMENT 'День народного единства',
+            is_orthodox_christmas TINYINT NOT NULL DEFAULT 0 COMMENT 'Рождество Христово',
+            is_end_of_month TINYINT NOT NULL DEFAULT 0 COMMENT 'Последние 3 дня месяца',
+            days_since_month_start_norm DOUBLE NOT NULL COMMENT 'Дни от начала месяца (0.0-1.0)',
+            is_quarter_end TINYINT NOT NULL DEFAULT 0 COMMENT 'Последние 7 дней квартала',
+            season_meteo VARCHAR(3) NOT NULL COMMENT 'Метеосезон: DJF/MAM/JJA/SON',
+            season_iso VARCHAR(10) NOT NULL COMMENT 'Сезон с ISO-годом'
+        )
+        ENGINE = OLAP
+        DUPLICATE KEY(`date`)
+        COMMENT 'Календарный справочник для feature engineering'
+        DISTRIBUTED BY HASH(`date`) BUCKETS 1
+        PROPERTIES (
+            "replication_num" = "1",
+            "in_memory" = "true"
+        )
+        """
+        self.starrocks.execute(ddl)

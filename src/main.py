@@ -50,6 +50,14 @@ async def ensure_calendar_updated(
     future_upload = config_repo.get_day_month("calendar_future_upload")
     region = config_repo.get_value("calendar_region", default="ru")
 
+    # Ensure table exists (create if not)
+    if not calendar_repo.ensure_table_exists():
+        logger.error(
+            "Failed to ensure dim_calendar table exists",
+            category(Category.STARROCKS),
+        )
+        return
+
     # Get current max date in calendar
     current_max_date = calendar_repo.get_max_date()
 
