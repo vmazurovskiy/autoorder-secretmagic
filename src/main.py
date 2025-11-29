@@ -54,6 +54,7 @@ async def ensure_calendar_updated(
     if not calendar_repo.ensure_table_exists():
         logger.error(
             "Failed to ensure dim_calendar table exists",
+            None,
             category(Category.STARROCKS),
         )
         return
