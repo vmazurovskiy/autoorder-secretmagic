@@ -3,6 +3,7 @@
 import os
 
 from src.database.postgres import PostgresConfig
+from src.database.starrocks import StarRocksConfig
 
 
 class RedisConfig:
@@ -18,7 +19,8 @@ class RedisConfig:
         # Streams для подписки (читаем события от integrator)
         self.subscribe_streams: list[str] = [
             "clients-updates",  # Конфигурация клиентов
-            # В будущем: sales-updates, stock-updates, bom-updates, и т.д.
+            "sales-updates",  # Обновление продаж
+            # В будущем: stock-updates, bom-updates, и т.д.
         ]
 
         # Streams для публикации (пока не используется)
@@ -49,3 +51,6 @@ class Settings:
 
         # Redis
         self.redis = RedisConfig()
+
+        # StarRocks (аналитическая БД)
+        self.starrocks = StarRocksConfig()

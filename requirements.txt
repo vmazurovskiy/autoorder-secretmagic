@@ -15,6 +15,12 @@ pandas>=2.3.0,<3.0.0  # For compatibility
 numpy>=2.3.0,<3.0.0  # Numerical computing
 scipy>=1.16.0,<2.0.0  # Scientific computing
 
+# HTTP client
+httpx>=0.28.1,<1.0.0  # HTTP client for isdayoff.ru API
+
+# Calendar/holidays
+holidays>=0.85,<1.0  # Official holidays library (requires Python >=3.10)
+
 # StarRocks / MySQL protocol
 pymysql>=1.1.2,<2.0.0  # StarRocks uses MySQL protocol
 cryptography>=46.0.0  # For pymysql

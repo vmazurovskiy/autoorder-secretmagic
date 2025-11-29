@@ -3,6 +3,7 @@
 from typing import Any
 
 from src.domain.client import Client
+from src.features.sales import SalesFeatureProcessor
 from src.logger.logger import get_logger
 from src.logger.types import Category, param
 from src.repository.client_repository import ClientRepository
@@ -15,20 +16,27 @@ class EventHandler:
     Routes events by type to appropriate handlers.
     """
 
-    def __init__(self, client_repository: ClientRepository) -> None:
+    def __init__(
+        self,
+        client_repository: ClientRepository,
+        sales_processor: SalesFeatureProcessor | None = None,
+    ) -> None:
         """
         Initialize EventHandler.
 
         Args:
             client_repository: Repository for client operations
+            sales_processor: Optional SalesFeatureProcessor for sales events
         """
         self.client_repository = client_repository
+        self.sales_processor = sales_processor
         self.logger = get_logger().with_category(Category.MESSENGER)
 
         # Маппинг event_type -> handler method
         self._handlers: dict[str, Any] = {
             "clients_updated": self._handle_clients_updated,
-            # В будущем: sales_updated, stock_updated, bom_updated, и т.д.
+            "sales_updated": self._handle_sales_updated,
+            # В будущем: stock_updated, bom_updated, и т.д.
         }
 
     async def handle(self, event: dict[str, Any]) -> None:
@@ -116,4 +124,102 @@ class EventHandler:
             param("client_name", client.name),
             param("status", client.status),
             param("features_count", len(enabled_features)),
+        )
+
+    async def _handle_sales_updated(self, event: dict[str, Any]) -> None:
+        """
+        Handle sales_updated event.
+
+        Event Notification Pattern - событие содержит только метаданные.
+        Полные данные нужно читать из StarRocks по client_id.
+
+        Формат data:
+            - table_name: название таблицы (например, "c2_sales")
+            - record_count: количество обновлённых записей
+            - updated_at: время обновления данных
+
+        Args:
+            event: Event with sales metadata in 'data' field
+        """
+        event_id = event.get("event_id")
+        client_id = event.get("client_id")
+        timestamp = event.get("timestamp")
+        data = event.get("data", {})
+
+        if not client_id:
+            self.logger.warn(
+                "sales_updated event has no client_id",
+                param("event_id", event_id),
+            )
+            return
+
+        # Извлекаем метаданные из события
+        table_name = data.get("table_name", "unknown")
+        record_count = data.get("record_count", 0)
+        updated_at = data.get("updated_at", timestamp)
+
+        # Проверяем, есть ли клиент в нашей БД
+        client = self.client_repository.get_by_id(client_id)
+        client_name = client.name if client else "unknown"
+        client_status = client.status if client else "not_found"
+
+        self.logger.info(
+            f"Sales data updated for client: {client_name}",
+            param("event_id", event_id),
+            param("client_id", client_id),
+            param("client_name", client_name),
+            param("client_status", client_status),
+            param("table_name", table_name),
+            param("record_count", record_count),
+            param("updated_at", updated_at),
+        )
+
+        # Проверяем, что клиент готов к обработке
+        if not client:
+            self.logger.warn(
+                "Client not found for sales_updated event",
+                param("event_id", event_id),
+                param("client_id", client_id),
+            )
+            return
+
+        if client.status != "active":
+            self.logger.info(
+                "Skipping sales processing: client not active",
+                param("client_id", client_id),
+                param("client_status", client.status),
+            )
+            return
+
+        if not client.config_confirmed:
+            self.logger.info(
+                "Skipping sales processing: config not confirmed",
+                param("client_id", client_id),
+                param("config_confirmed", client.config_confirmed),
+            )
+            return
+
+        # Проверяем, что есть SalesFeatureProcessor
+        if not self.sales_processor:
+            self.logger.warn(
+                "SalesFeatureProcessor not configured, skipping processing",
+                param("client_id", client_id),
+            )
+            return
+
+        # Запускаем feature engineering
+        self.logger.info(
+            f"Starting feature engineering for {client_name}",
+            param("client_id", client_id),
+            param("table_name", table_name),
+        )
+
+        result = self.sales_processor.process(client)
+
+        self.logger.info(
+            f"Feature engineering completed for {client_name}",
+            param("client_id", client_id),
+            param("records_processed", result.records_processed),
+            param("duration_ms", result.processing_duration_ms),
+            param("features", result.features_calculated),
         )
