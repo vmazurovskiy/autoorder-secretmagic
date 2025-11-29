@@ -76,6 +76,7 @@ services:
       - starrocks_user
       - starrocks_password
       - redis_password
+      - yandex_geocoder_api_key
     volumes:
       - ./configs:/app/configs:ro
     networks:
@@ -128,3 +129,6 @@ secrets:
   redis_password:
     external: true
     name: messenger_${ENVIRONMENT:-dev}_redis_password
+  yandex_geocoder_api_key:
+    external: true
+    name: secretmagic_${ENVIRONMENT:-dev}_yandex_geocoder_api_key
