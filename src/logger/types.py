@@ -29,6 +29,7 @@ class Category(str, Enum):
     STARROCKS = "starrocks"  # StarRocks queries
     CACHE = "cache"  # Кеширование
     SECURITY = "security"  # События безопасности
+    EXTERNAL_API = "external_api"  # Внешние API (Yandex, Open-Meteo)
 
 
 @dataclass

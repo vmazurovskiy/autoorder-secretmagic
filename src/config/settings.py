@@ -6,6 +6,27 @@ from src.database.postgres import PostgresConfig
 from src.database.starrocks import StarRocksConfig
 
 
+class YandexConfig:
+    """Yandex API configuration (Geocoder)."""
+
+    def __init__(self) -> None:
+        self.geocoder_api_key = self._read_api_key()
+
+    def _read_api_key(self) -> str | None:
+        """Read Yandex Geocoder API key from Docker secret or environment."""
+        secret_path = "/run/secrets/yandex_geocoder_api_key"
+        try:
+            with open(secret_path) as f:
+                return f.read().strip()
+        except FileNotFoundError:
+            return os.getenv("YANDEX_GEOCODER_API_KEY")
+
+    @property
+    def is_configured(self) -> bool:
+        """Check if Yandex Geocoder is configured."""
+        return bool(self.geocoder_api_key)
+
+
 class RedisConfig:
     """Redis configuration."""
 
@@ -54,3 +75,6 @@ class Settings:
 
         # StarRocks (аналитическая БД)
         self.starrocks = StarRocksConfig()
+
+        # Yandex APIs (Geocoder)
+        self.yandex = YandexConfig()
