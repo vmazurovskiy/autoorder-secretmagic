@@ -57,7 +57,7 @@ class ConfigRepository:
                     updated_by=row["updated_by"],
                 )
         finally:
-            self.postgres.release_connection(conn)
+            self.postgres.put_connection(conn)
 
     def get_value(self, key: str, default: str | None = None) -> str | None:
         """
@@ -162,7 +162,7 @@ class ConfigRepository:
             )
             raise
         finally:
-            self.postgres.release_connection(conn)
+            self.postgres.put_connection(conn)
 
     def get_all(self) -> list[ConfigEntry]:
         """
@@ -194,4 +194,4 @@ class ConfigRepository:
                     for row in rows
                 ]
         finally:
-            self.postgres.release_connection(conn)
+            self.postgres.put_connection(conn)
